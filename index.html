@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopCart</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .product-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .product-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.08); }
+
+        /* Custom toast for non-alert messages */
+        #toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50; 
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #toast-notification.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Custom radio button styling for size/color selection */
+        .custom-radio input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .custom-radio span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #4b5563;
+        }
+        .custom-radio input[type="radio"]:checked + span {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+            color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5);
+        }
+
+        /* Styling for the checkout progress bar */
+        .progress-step {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            width: 33.33%;
+            text-align: center;
+            position: relative;
+        }
+        .progress-step-dot {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            background-color: #d1d5db;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            z-index: 10;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .progress-step.active .progress-step-dot {
+            background-color: #4f46e5;
+            transform: scale(1.1);
+        }
+        .progress-step.complete .progress-step-dot {
+            background-color: #10b981;
+        }
+        .progress-step-label {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+            transition: color 0.3s;
+        }
+        .progress-step.active .progress-step-label,
+        .progress-step.complete .progress-step-label {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        .progress-bar {
+            position: absolute;
+            height: 4px;
+            background-color: #d1d5db;
+            width: 100%;
+            top: 1rem;
+            z-index: 5;
+        }
+        .progress-line {
+            height: 100%;
+            background-color: #4f46e5;
+            transition: width 0.5s ease-in-out;
+        }
+        
+        /* Carousel styling */
+        #carousel-inner {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+            height: 100%;
+        }
+        #carousel-inner > div {
+            flex-shrink: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <header id="main-header" class="sticky top-0 bg-white shadow-lg z-30"></header>
+
+    <div id="app-container">
+        </div>
+
+    <div id="quick-view-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-40">
+        <div id="quick-view-content" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-8">
+            </div>
+    </div>
+    
+    <div id="login-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-40">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative">
+            <button onclick="App.hideLoginModal()" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="login-username" class="block text-sm font-medium text-gray-700">Email/Username: test@123 (pre-fill) or TEST@12345 (manual)</label>
+                    <input type="text" id="login-username" data-testid="login-username-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2" required>
+                </div>
+                <div class="mb-6">
+                    <label for="login-password" class="block text-sm font-medium text-gray-700">Password (password123)</label>
+                    <input type="password" id="login-password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2" required>
+                </div>
+                <button type="submit" data-testid="login-submit-button" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-150">Sign In</button>
+            </form>
+            <p class="mt-4 text-sm text-gray-500 text-center">Use credentials: testuser / password123</p>
+        </div>
+    </div>
+
+    <div id="toast-notification" class="p-4 rounded-xl shadow-xl text-white"></div>
+
+    <script type="module">
+        (function() {
+            // --- Global State ---
+            const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const ALL_PRODUCTS = [];
+            
+            // --- UPDATED PRODUCT GENERATION LOGIC ---
+            const categories = ['Shirt', 'T-Shirt', 'Jeans', 'Shoes'];
+            
+            // Define gender-specific colors
+            const genderSpecificColors = {
+                'him': {
+                    'Red': 'bg-red-500',
+                    'Blue': 'bg-blue-500',
+                    'Green': 'bg-green-500',
+                },
+                'her': {
+                    'Yellow': 'bg-yellow-500',
+                    'Pink': 'bg-pink-500'
+                }
+            };
+
+            let productIdCounter = 1;
+
+            for (const category of categories) {
+                for (const gender of ['him', 'her']) {
+                    const colorsToUse = genderSpecificColors[gender];
+                    for (const [colorName, colorClass] of Object.entries(colorsToUse)) {
+                        
+                        // Set price based on category (USER REQUESTED CHANGE)
+                        let price;
+                        if (category === 'Shirt') {
+                            price = 499;
+                        } else if (category === 'T-Shirt') {
+                            price = 299;
+                        } else if (category === 'Jeans') {
+                            price = 799;
+                        } else if (category === 'Shoes') {
+                            price = 999;
+                        }
+
+                        const id = `${category.substring(0, 1)}${gender.substring(0,1)}${productIdCounter++}`;
+                        ALL_PRODUCTS.push({
+                            id: id,
+                            name: `${colorName} ${category} (${gender === 'him' ? 'Men' : 'Women'})`,
+                            price: price, // <-- UPDATED PRICE
+                            category: category,
+                            gender: gender,
+                            // Image text now uses Color Name and Category (USER REQUESTED CHANGE)
+                            image: `https://placehold.co/400x400/${colorClass.replace('bg-', '').replace('-500', '')}/white?text=${colorName}+${category}`, 
+                            description: `A stylish ${colorName.toLowerCase()} ${category.toLowerCase()} for a comfortable and modern fit.`,
+                            stock: 25,
+                            availableSizes: category === 'Shoes' ? ['7', '8', '9', '10'] : ['S', 'M', 'L', 'XL'],
+                            availableColors: [{ name: colorName, class: colorClass }],
+                        });
+                    }
+                }
+            }
+
+
+            let cart = {}; // key: productId-size-color, value: { product, size, color, quantity }
+            let savedForLater = {};
+            let currentPage = 'home';
+            let currentFilter = 'all'; // 'all', 'him', 'her'
+            let searchTerm = ''; // Search term state
+
+            let auth = {
+                isLoggedIn: false,
+                currentUser: null,
+            };
+
+            const PRE_FILLED_SHIPPING = {
+                fullName: "Gemini Test User",
+                email: "test@123",
+                address: "Googleplex, 1600 Amphitheatre Parkway",
+                city: "Mountain View",
+                postalCode: "94043"
+            };
+
+            let checkoutData = {
+                step: 1, // 1, 2, 3
+                shipping: {}, // { fullName, email, address, city, postalCode }
+                payment: {
+                    method: 'COD',
+                    cardNumber: ''
+                },
+                pendingCheckout: false, // flag to resume checkout after login
+            };
+
+            // Carousel State
+            let currentSlide = 0;
+            const totalSlides = 3;
+            let carouselInterval = null;
+
+
+            // --- Utility Functions ---
+
+            const showToast = (message, type = 'info') => {
+                const toast = document.getElementById('toast-notification');
+                let bgColor = 'bg-gray-800';
+                
+                if (type === 'success') bgColor = 'bg-green-600';
+                else if (type === 'error') bgColor = 'bg-red-600';
+
+                toast.className = `p-4 rounded-xl shadow-xl text-white ${bgColor}`;
+                toast.innerHTML = message;
+                toast.classList.add('show');
+
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            };
+
+            const findProductById = (id) => ALL_PRODUCTS.find(p => p.id === id);
+
+            const calculateTotals = () => {
+                const items = Object.values(cart);
+                const subtotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+                const shipping = items.length > 0 ? 100.00 : 0; // Fixed shipping fee
+                const total = subtotal + shipping;
+
+                return { subtotal, shipping, total, itemCount: items.length };
+            };
+
+            const formatCurrency = (amount) => `₹${amount.toFixed(2)}`;
+
+            const filterProducts = (products) => {
+                // 1. Filter by Gender
+                let filteredByGender = products;
+                if (currentFilter !== 'all') {
+                    filteredByGender = products.filter(product => product.gender === currentFilter);
+                }
+                
+                // 2. Filter by Search Term (applied only when search button is clicked)
+                const filteredBySearch = filteredByGender.filter(product =>
+                    product.name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                
+                return filteredBySearch;
+            };
+
+            const debounce = (func, delay) => {
+                let timeout;
+                return (...args) => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), delay);
+                };
+            };
+            
+            // --- Carousel Functions ---
+
+            const updateCarousel = () => {
+                const inner = document.getElementById('carousel-inner');
+                if (inner) {
+                    inner.style.transform = `translateX(-${currentSlide * 100}%)`;
+                }
+            };
+
+            const nextSlide = () => {
+                currentSlide = (currentSlide + 1) % totalSlides;
+                updateCarousel();
+            };
+
+            const prevSlide = () => {
+                currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+                updateCarousel();
+            };
+            
+            const startCarousel = () => {
+                if (carouselInterval) clearInterval(carouselInterval);
+                carouselInterval = setInterval(nextSlide, 5000); // Change slide every 5 seconds
+            };
+
+
+            // --- Renderer Functions ---
+
+            const renderNavBar = () => {
+                const { itemCount } = calculateTotals();
+                // FIX: Target the static header element (#main-header) instead of the dynamic #app-container.
+                const headerContainer = document.getElementById('main-header');
+
+                const navHtml = `
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between flex-wrap">
+                        
+                        <div class="flex-shrink-0">
+                            <h1 class="text-2xl font-black text-indigo-600 cursor-pointer" onclick="App.navigate('home')">
+                                <span class="text-3xl">🛍️</span> ShopCart
+                            </h1>
+                        </div>
+
+                        <div class="order-3 md:order-2 w-full md:w-auto lg:w-1/3 my-2 md:my-0 flex items-center rounded-full bg-gray-100 border focus-within:ring-2 focus-within:ring-indigo-500">
+                            <input type="text" id="search-input" placeholder="Search products..." oninput="App.setSearchTerm(this.value)"
+                                class="w-full px-4 py-2 text-sm text-gray-800 bg-transparent focus:outline-none rounded-l-full"
+                                value="${searchTerm}" onkeypress="if(event.key === 'Enter') { App.handleSearchClick(); event.preventDefault(); }">
+                            <button onclick="App.handleSearchClick()" id="search-button" data-testid="search-button"
+                                class="px-4 py-2 bg-indigo-600 text-white rounded-r-full hover:bg-indigo-700 transition duration-150 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="order-2 md:order-3 flex items-center space-x-4">
+                            ${auth.isLoggedIn ? `
+                                <span class="text-sm font-medium text-gray-700 hidden sm:inline" data-testid="logged-in-user">Welcome, ${auth.currentUser}</span>
+                                <button onclick="App.handleLogout()" data-testid="logout-button" class="text-gray-600 hover:text-indigo-600 transition">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                </button>
+                            ` : `
+                                <button onclick="App.showLoginModal()" data-testid="login-button" class="text-gray-600 hover:text-indigo-600 transition flex items-center space-x-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Login</span>
+                                </button>
+                            `}
+                            
+                            <button onclick="App.navigate('cart')" class="relative text-gray-600 hover:text-indigo-600 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                ${itemCount > 0 ? `<span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">${itemCount}</span>` : ''}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // FIX: Replace content of the static header container.
+                headerContainer.innerHTML = navHtml;
+            };
+
+            const renderProducts = () => {
+                const products = filterProducts(ALL_PRODUCTS);
+                const groupedProducts = products.reduce((acc, p) => {
+                    acc[p.category] = acc[p.category] || [];
+                    acc[p.category].push(p);
+                    return acc;
+                }, {});
+
+                let productsHtml = products.length === 0 
+                    ? `<p class="text-center text-xl text-gray-600 mt-8 col-span-full">No products found matching your filter and search criteria.</p>`
+                    : '';
+
+                for (const category in groupedProducts) {
+                    productsHtml += `
+                        <div class="col-span-full mt-10">
+                            <h2 class="text-3xl font-extrabold text-gray-800 border-b-2 border-indigo-200 pb-2 mb-6">${category} Collection</h2>
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                    `;
+                    groupedProducts[category].forEach(product => {
+                        productsHtml += renderProductCard(product);
+                    });
+                    productsHtml += `
+                            </div>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('product-list').innerHTML = productsHtml;
+            };
+
+            const renderProductCard = (product) => {
+                // All products now use "Select Options"
+                const actionButton = `
+                    <button onclick="App.showQuickViewModal('${product.id}')" 
+                            data-testid="add-to-cart-quick-view-${product.id}"
+                            class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition duration-150 font-semibold shadow-md">
+                        Select Options
+                    </button>
+                `;
+
+                return `
+                    <div id="product-card-${product.id}" class="product-card bg-white rounded-xl shadow-lg overflow-hidden flex flex-col justify-between" data-testid="product-card-${product.id}">
+                        <div>
+                            <img src="${product.image}" alt="${product.name}" class="w-full h-48 object-cover">
+                            <div class="p-4">
+                                <h3 class="text-lg font-bold text-gray-800 truncate">${product.name}</h3>
+                                <p class="text-xl font-extrabold text-indigo-600 mt-1">${formatCurrency(product.price)}</p>
+                                <p class="text-sm text-gray-500">Stock: ${product.stock}</p>
+                            </div>
+                        </div>
+                        <div class="p-4 pt-0">
+                            ${actionButton}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderHomePage = () => {
+                renderNavBar(); // Now correctly updates the static header
+                currentPage = 'home';
+                searchTerm = ''; // Reset search term when navigating home
+
+                const contentHtml = `
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        
+                        <div class="bg-white rounded-xl shadow-xl overflow-hidden mb-8 p-10 text-center">
+                            <h2 class="text-4xl sm:text-5xl font-extrabold text-gray-900">Shop The Latest <span class="text-indigo-600">Trends</span></h2>
+                            <p class="mt-2 text-lg text-gray-600">Discover premium quality and exceptional style.</p>
+                        </div>
+                        
+                        <div class="mb-12">
+                            <div id="carousel-banner" class="relative w-full overflow-hidden rounded-xl shadow-lg h-56 sm:h-72 bg-gray-100">
+                                <div id="carousel-inner" class="flex transition-transform duration-500 ease-in-out h-full">
+                                    <div class="w-full flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center p-4">
+                                        <p class="text-2xl sm:text-4xl font-extrabold text-white text-center">New Arrivals: 20% Off All Footwear!</p>
+                                    </div>
+                                    <div class="w-full flex-shrink-0 bg-gradient-to-r from-teal-400 to-cyan-500 flex items-center justify-center p-4">
+                                        <p class="text-2xl sm:text-4xl font-extrabold text-white text-center">Free Shipping on Orders Over ₹5,000!</p>
+                                    </div>
+                                    <div class="w-full flex-shrink-0 bg-gradient-to-r from-pink-400 to-rose-500 flex items-center justify-center p-4">
+                                        <p class="text-2xl sm:text-4xl font-extrabold text-white text-center">Limited Edition Colorways are Here!</p>
+                                    </div>
+                                </div>
+                                <button onclick="App.prevSlide()" class="absolute top-1/2 left-4 transform -translate-y-1/2 bg-black bg-opacity-30 text-white p-2 rounded-full hover:bg-opacity-50 transition">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                                </button>
+                                <button onclick="App.nextSlide()" class="absolute top-1/2 right-4 transform -translate-y-1/2 bg-black bg-opacity-30 text-white p-2 rounded-full hover:bg-opacity-50 transition">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-center space-x-4 mb-10">
+                            <button onclick="App.setFilter('all')" class="px-6 py-2 rounded-full font-semibold transition ${currentFilter === 'all' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-indigo-100 border'}" data-testid="gender-filter-all">All</button>
+                            <button onclick="App.setFilter('him')" class="px-6 py-2 rounded-full font-semibold transition ${currentFilter === 'him' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-indigo-100 border'}" data-testid="gender-filter-him">For Him</button>
+                            <button onclick="App.setFilter('her')" class="px-6 py-2 rounded-full font-semibold transition ${currentFilter === 'her' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-indigo-100 border'}" data-testid="gender-filter-her">For Her</button>
+                        </div>
+                        
+                        <div id="product-list" class="grid grid-cols-12 gap-6">
+                            </div>
+                    </div>
+                `;
+
+                // The fix ensures this line only clears/sets the content below the header.
+                document.getElementById('app-container').innerHTML = contentHtml;
+                renderProducts();
+                
+                // Set the correct search input value after re-rendering
+                document.getElementById('search-input').value = searchTerm;
+            };
+
+            const renderCartPage = () => {
+                renderNavBar();
+                currentPage = 'cart';
+                const { subtotal, shipping, total, itemCount } = calculateTotals();
+                const items = Object.values(cart);
+                const savedItems = Object.values(savedForLater);
+
+                let cartHtml = `
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <h2 class="text-3xl font-extrabold text-gray-900 mb-6">Shopping Cart (${itemCount} Items)</h2>
+                        
+                        <div class="lg:flex lg:space-x-8">
+                            <div class="lg:w-3/4 bg-white p-6 rounded-xl shadow-xl space-y-4">
+                                ${items.length === 0 
+                                    ? `<div class="text-center py-10 text-gray-500">Your cart is empty. <span class="text-indigo-600 cursor-pointer" onclick="App.navigate('home')">Start shopping!</span></div>`
+                                    : items.map(item => `
+                                        <div class="flex items-center space-x-4 border-b pb-4 last:border-b-0" data-testid="cart-item-${item.product.id}-${item.size}-${item.color}">
+                                            <img src="${item.product.image}" alt="${item.product.name}" class="w-20 h-20 object-cover rounded-lg">
+                                            <div class="flex-grow">
+                                                <h3 class="text-lg font-semibold text-gray-800">${item.product.name}</h3>
+                                                <p class="text-sm text-gray-500">Size: ${item.size} | Color: ${item.color.name}</p>
+                                                <p class="text-base font-bold text-indigo-600 mt-1">${formatCurrency(item.product.price)}</p>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <button onclick="App.updateCartQuantity('${item.cartKey}', -1)" data-testid="qty-minus-${item.cartKey}" class="text-gray-600 hover:text-indigo-600 p-2 rounded-full bg-gray-100">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                                                </button>
+                                                <span class="text-lg font-semibold w-6 text-center">${item.quantity}</span>
+                                                <button onclick="App.updateCartQuantity('${item.cartKey}', 1)" data-testid="qty-plus-${item.cartKey}" class="text-gray-600 hover:text-indigo-600 p-2 rounded-full bg-gray-100">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v8a1 1 0 11-2 0V6a1 1 0 011-1z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                                                </button>
+                                            </div>
+                                            <button onclick="App.moveItemToSaved('${item.cartKey}')" class="text-sm text-gray-500 hover:text-indigo-600 hidden sm:block">
+                                                Save for Later
+                                            </button>
+                                            <button onclick="App.removeFromCart('${item.cartKey}')" data-testid="remove-from-cart-${item.cartKey}" class="text-red-500 hover:text-red-700 ml-4">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                            </div>
+
+                            <div class="lg:w-1/4 mt-8 lg:mt-0 bg-white p-6 rounded-xl shadow-xl h-fit">
+                                <h3 class="text-2xl font-bold text-gray-900 mb-4 border-b pb-2">Order Summary</h3>
+                                <div class="space-y-2 text-gray-700">
+                                    <div class="flex justify-between">
+                                        <span>Subtotal:</span>
+                                        <span class="font-medium">${formatCurrency(subtotal)}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Shipping:</span>
+                                        <span class="font-medium">${formatCurrency(shipping)}</span>
+                                    </div>
+                                    <div class="flex justify-between pt-4 border-t mt-4">
+                                        <span class="text-xl font-extrabold text-gray-900">Order Total:</span>
+                                        <span class="text-xl font-extrabold text-indigo-600">${formatCurrency(total)}</span>
+                                    </div>
+                                </div>
+                                <button onclick="App.handleProceedToCheckout()" data-testid="initiate-checkout-button" 
+                                        ${itemCount === 0 ? 'disabled' : ''}
+                                        class="mt-6 w-full py-3 bg-indigo-600 text-white font-bold rounded-lg ${itemCount === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700 transition'}">
+                                    Proceed to Checkout
+                                </button>
+                            </div>
+                        </div>
+
+                        ${savedItems.length > 0 ? `
+                            <div class="mt-12 bg-white p-6 rounded-xl shadow-xl">
+                                <h3 class="text-2xl font-extrabold text-gray-900 mb-4 border-b pb-2">Saved For Later (${savedItems.length} Items)</h3>
+                                <div class="space-y-4">
+                                    ${savedItems.map(item => `
+                                        <div class="flex items-center space-x-4 border-b pb-4 last:border-b-0">
+                                            <img src="${item.product.image}" alt="${item.product.name}" class="w-16 h-16 object-cover rounded-lg">
+                                            <div class="flex-grow">
+                                                <h3 class="font-semibold text-gray-800">${item.product.name}</h3>
+                                                <p class="text-sm text-gray-500">Size: ${item.size} | Color: ${item.color.name} | ${formatCurrency(item.product.price)}</p>
+                                            </div>
+                                            <button onclick="App.moveItemToCart('${item.cartKey}')" class="text-sm text-indigo-600 hover:underline">
+                                                Move to Cart
+                                            </button>
+                                            <button onclick="App.removeFromSaved('${item.cartKey}')" class="text-red-500 hover:text-red-700">
+                                                Remove
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                    </div>
+                `;
+
+                document.getElementById('app-container').innerHTML = cartHtml;
+            };
+
+            const renderCheckoutPage = () => {
+                renderNavBar();
+                currentPage = `checkout-step-${checkoutData.step}`;
+
+                const stepTitles = {
+                    1: 'Shipping Information',
+                    2: 'Payment Method',
+                    3: 'Review & Place Order'
+                };
+
+                const progress = (checkoutData.step - 1) * 50;
+
+                const checkoutHtml = `
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <h2 class="text-3xl font-extrabold text-gray-900 mb-8">Checkout</h2>
+                        
+                        <div class="flex justify-between items-start mb-12 relative w-full max-w-2xl mx-auto">
+                            <div class="progress-bar">
+                                <div class="progress-line" style="width: ${progress}%;"></div>
+                            </div>
+                            <div class="progress-step ${checkoutData.step >= 1 ? 'active complete' : ''}" onclick="App.navigateCheckout(1)">
+                                <div class="progress-step-dot">1</div>
+                                <span class="progress-step-label">Shipping</span>
+                            </div>
+                            <div class="progress-step ${checkoutData.step >= 2 ? 'complete' : ''} ${checkoutData.step === 2 ? 'active' : ''}" onclick="App.navigateCheckout(2)">
+                                <div class="progress-step-dot">2</div>
+                                <span class="progress-step-label">Payment</span>
+                            </div>
+                            <div class="progress-step ${checkoutData.step >= 3 ? 'complete' : ''} ${checkoutData.step === 3 ? 'active' : ''}" onclick="App.navigateCheckout(3)">
+                                <div class="progress-step-dot">3</div>
+                                <span class="progress-step-label">Review</span>
+                            </div>
+                        </div>
+
+                        <div class="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-xl">
+                            <h3 class="text-2xl font-bold text-indigo-600 mb-6">${stepTitles[checkoutData.step]}</h3>
+                            <div id="checkout-step-content">
+                                </div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('app-container').innerHTML = checkoutHtml;
+
+                if (checkoutData.step === 1) renderCheckoutStep1();
+                else if (checkoutData.step === 2) renderCheckoutStep2();
+                else if (checkoutData.step === 3) renderCheckoutStep3();
+            };
+
+            const renderCheckoutStep1 = () => {
+                const step1Content = document.getElementById('checkout-step-content');
+                if (!step1Content) return;
+                
+                const { shipping } = checkoutData;
+
+                const html = `
+                    <form id="shipping-form" data-testid="checkout-step-1-form">
+                        <div class="mb-4">
+                            <label for="fullName" class="block text-sm font-medium text-gray-700">Full Name</label>
+                            <input type="text" id="fullName" name="fullName" data-testid="shipping-name-input" value="${shipping.fullName || ''}" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:border-indigo-500 focus:ring-indigo-500">
+                        </div>
+                        <div class="mb-4">
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                            <input type="email" id="email" name="email" data-testid="shipping-email-input" value="${shipping.email || ''}" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:border-indigo-500 focus:ring-indigo-500">
+                            <p id="validation-error-email" class="text-sm text-red-500 hidden mt-1" data-testid="validation-error-email">Please enter a valid email address.</p>
+                        </div>
+                        <div class="mb-4">
+                            <label for="address" class="block text-sm font-medium text-gray-700">Street Address</label>
+                            <input type="text" id="address" name="address" data-testid="shipping-address-input" value="${shipping.address || ''}" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:border-indigo-500 focus:ring-indigo-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="mb-4">
+                                <label for="city" class="block text-sm font-medium text-gray-700">City</label>
+                                <input type="text" id="city" name="city" data-testid="shipping-city-input" value="${shipping.city || ''}" required 
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:border-indigo-500 focus:ring-indigo-500">
+                            </div>
+                            <div class="mb-4">
+                                <label for="postalCode" class="block text-sm font-medium text-gray-700">Postal Code (e.g., 94043)</label>
+                                <input type="text" id="postalCode" name="postalCode" data-testid="shipping-postal-input" value="${shipping.postalCode || ''}" required maxlength="6"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:border-indigo-500 focus:ring-indigo-500">
+                                <p id="validation-error-postal" class="text-sm text-red-500 hidden mt-1">Postal code must be 6 digits.</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="App.handleShippingSubmit()" data-testid="next-step-2-button"
+                            class="mt-6 w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">
+                            Next: Payment
+                        </button>
+                    </form>
+                `;
+                step1Content.innerHTML = html;
+            };
+
+            const renderCheckoutStep2 = () => {
+                const step2Content = document.getElementById('checkout-step-content');
+                if (!step2Content) return;
+                
+                // Set COD as default (and only) method
+                checkoutData.payment.method = 'COD';
+                checkoutData.payment.cardNumber = ''; 
+
+                const html = `
+                    <p class="text-gray-600 mb-6">Select your payment method below.</p>
+                    
+                    <div class="bg-gray-50 p-6 rounded-xl shadow-md border-2 border-indigo-500" data-testid="payment-method-cash">
+                        <label class="flex items-center space-x-4 cursor-pointer">
+                            <input type="radio" name="paymentMethod" value="COD" checked disabled
+                                class="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                            <div class="flex flex-col">
+                                <span class="text-xl font-semibold text-gray-900">Cash on Delivery (COD)</span>
+                                <span class="text-sm text-gray-500">Pay with cash upon delivery of your order.</span>
+                            </div>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V9a1 1 0 100-2v1m0 8v1a1 1 0 001 1h2m-3 0v1a1 1 0 01-1 1H9m5 0h-3" /></svg>
+                        </label>
+                    </div>
+
+                    <p class="mt-8 text-sm text-gray-500">Note: Credit/Debit card payments are currently unavailable.</p>
+
+                    <button type="button" onclick="App.navigateCheckout(3)" data-testid="next-step-3-button"
+                        class="mt-6 w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">
+                        Next: Review Order
+                    </button>
+                `;
+                step2Content.innerHTML = html;
+            };
+
+            const renderCheckoutStep3 = () => {
+                const step3Content = document.getElementById('checkout-step-content');
+                if (!step3Content) return;
+                
+                const { subtotal, shipping, total } = calculateTotals();
+                const items = Object.values(cart);
+                const { shipping: s, payment: p } = checkoutData;
+
+                const html = `
+                    <div class="space-y-6">
+                        <div class="border p-4 rounded-lg bg-gray-50">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="font-bold text-lg text-gray-800">Shipping Details</h4>
+                                <button onclick="App.navigateCheckout(1)" class="text-sm text-indigo-600 hover:underline">Edit</button>
+                            </div>
+                            <p data-testid="review-shipping-name" class="text-gray-700">${s.fullName}</p>
+                            <p class="text-gray-500">${s.address}, ${s.city} - ${s.postalCode}</p>
+                            <p class="text-gray-500">${s.email}</p>
+                        </div>
+
+                        <div class="border p-4 rounded-lg bg-gray-50">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="font-bold text-lg text-gray-800">Payment Method</h4>
+                                <button onclick="App.navigateCheckout(2)" class="text-sm text-indigo-600 hover:underline">Edit</button>
+                            </div>
+                            <p data-testid="review-payment-method" class="text-gray-700 font-semibold">${p.method === 'COD' ? 'Cash on Delivery' : 'Credit/Debit Card'}</p>
+                            ${p.method === 'CC' ? `<p class="text-sm text-gray-500">Card ending in ${p.cardNumber.slice(-4)}</p>` : ''}
+                        </div>
+
+                        <div class="border p-4 rounded-lg bg-white shadow-sm max-h-60 overflow-y-auto">
+                            <h4 class="font-bold text-lg text-gray-800 mb-3">Items in Order (${items.length})</h4>
+                            ${items.map(item => `
+                                <div class="flex justify-between text-sm py-1 border-b last:border-b-0">
+                                    <span class="text-gray-600">${item.quantity}x ${item.product.name} (${item.size}, ${item.color.name})</span>
+                                    <span class="font-medium">${formatCurrency(item.product.price * item.quantity)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="p-4 bg-indigo-50 rounded-lg">
+                            <div class="flex justify-between text-lg font-semibold">
+                                <span>Subtotal:</span>
+                                <span>${formatCurrency(subtotal)}</span>
+                            </div>
+                            <div class="flex justify-between text-lg font-semibold">
+                                <span>Shipping:</span>
+                                <span>${formatCurrency(shipping)}</span>
+                            </div>
+                            <div class="flex justify-between text-2xl font-extrabold pt-2 border-t border-indigo-200 mt-2">
+                                <span class="text-gray-900">Total Due:</span>
+                                <span class="text-indigo-600" data-testid="review-total">${formatCurrency(total)}</span>
+                            </div>
+                        </div>
+
+                        <button onclick="App.handlePlaceOrder()" data-testid="place-order-button"
+                            class="mt-6 w-full py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition">
+                            Place Order
+                        </button>
+                    </div>
+                `;
+                step3Content.innerHTML = html;
+            };
+
+            const renderConfirmationPage = () => {
+                renderNavBar();
+                currentPage = 'confirm';
+                
+                const html = `
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+                        <div class="bg-white p-10 rounded-xl shadow-2xl max-w-xl mx-auto">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 text-green-500 mx-auto mb-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                            <h2 class="text-4xl font-extrabold text-gray-900 mb-3">Order Placed Successfully!</h2>
+                            <p class="text-xl text-gray-600 mb-6">Your order number is <span class="font-mono bg-yellow-100 p-1 rounded">#${Date.now().toString().slice(-6)}</span></p>
+                            <p class="text-gray-700 mb-8">We've sent an order confirmation email to ${checkoutData.shipping.email || 'your email address'}.</p>
+                            <button onclick="App.navigate('home')" class="py-3 px-8 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-lg">
+                                Continue Shopping
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('app-container').innerHTML = html;
+                
+                // Reset checkout state after confirmation
+                checkoutData.step = 1;
+                checkoutData.shipping = {};
+                checkoutData.payment = { method: 'COD', cardNumber: '' };
+                checkoutData.pendingCheckout = false;
+            };
+
+
+            // --- Modal Functions ---
+
+            let quickViewSelection = {
+                product: null,
+                size: null,
+                color: null
+            };
+
+            const showQuickViewModal = (productId) => {
+                const product = findProductById(productId);
+                if (!product) return;
+
+                quickViewSelection = {
+                    product: product,
+                    size: null,
+                    color: null
+                };
+
+                // Auto-select defaults if only one option exists
+                if (product.availableSizes && product.availableSizes.length === 1) {
+                    quickViewSelection.size = product.availableSizes[0];
+                }
+                if (product.availableColors && product.availableColors.length === 1) {
+                    quickViewSelection.color = product.availableColors[0];
+                }
+                
+                // Show modal and render content
+                document.getElementById('quick-view-modal').classList.remove('hidden');
+                document.getElementById('quick-view-modal').classList.add('flex');
+                renderQuickViewContent();
+            };
+
+            const hideQuickViewModal = () => {
+                document.getElementById('quick-view-modal').classList.remove('flex');
+                document.getElementById('quick-view-modal').classList.add('hidden');
+            };
+            
+            const renderQuickViewContent = () => {
+                const container = document.getElementById('quick-view-content');
+                const product = quickViewSelection.product;
+
+                let sizeOptions = product.availableSizes.map(s => `
+                    <label class="custom-radio">
+                        <input type="radio" name="size" value="${s}" ${quickViewSelection.size === s ? 'checked' : ''} onclick="App.setQuickViewSize('${s}')" data-testid="size-option-${s}">
+                        <span>${s}</span>
+                    </label>
+                `).join('');
+
+                let colorOptions = product.availableColors.map(c => `
+                    <label class="custom-radio">
+                        <input type="radio" name="color" value="${c.name}" ${quickViewSelection.color && quickViewSelection.color.name === c.name ? 'checked' : ''} onclick="App.setQuickViewColor('${c.name}', '${c.class}')" data-testid="color-option-${c.class.replace('bg-', '')}">
+                        <span class="flex items-center space-x-2">
+                            <div class="w-5 h-5 rounded-full ${c.class} border border-gray-300"></div>
+                            <span>${c.name}</span>
+                        </span>
+                    </label>
+                `).join('');
+
+                const isReadyToAdd = quickViewSelection.size && quickViewSelection.color;
+
+                const contentHtml = `
+                    <div class="flex justify-end">
+                        <button onclick="App.hideQuickViewModal()" class="text-gray-400 hover:text-gray-600 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-8 mt-2">
+                        <div>
+                            <img src="${product.image}" alt="${product.name}" class="w-full h-80 object-cover rounded-xl shadow-md">
+                        </div>
+
+                        <div>
+                            <h3 class="text-3xl font-extrabold text-gray-900">${product.name}</h3>
+                            <p class="text-2xl font-bold text-indigo-600 mt-2">${formatCurrency(product.price)}</p>
+                            <p class="text-gray-600 mt-4">${product.description}</p>
+                            <p class="text-sm text-gray-500 mt-2">In stock: ${product.stock} units</p>
+
+                            <div class="mt-6">
+                                <p class="font-semibold text-gray-800 mb-2">Size: <span class="text-indigo-600">${quickViewSelection.size || 'Select'}</span></p>
+                                <div class="flex flex-wrap gap-3">
+                                    ${sizeOptions}
+                                </div>
+                            </div>
+
+                            <div class="mt-6">
+                                <p class="font-semibold text-gray-800 mb-2">Color: <span class="text-indigo-600">${quickViewSelection.color ? quickViewSelection.color.name : 'Select'}</span></p>
+                                <div class="flex flex-wrap gap-3">
+                                    ${colorOptions}
+                                </div>
+                            </div>
+
+                            <button onclick="App.addToCartFromModal()" data-testid="modal-add-to-cart-button"
+                                ${isReadyToAdd ? '' : 'disabled'}
+                                class="mt-8 w-full py-3 text-white font-bold rounded-lg transition 
+                                    ${isReadyToAdd ? 'bg-indigo-600 hover:bg-indigo-700 shadow-lg' : 'bg-gray-400 cursor-not-allowed'}">
+                                ${isReadyToAdd ? 'Add to Cart' : 'Select All Options'}
+                            </button>
+                            
+                            <p class="mt-4 text-sm text-center text-gray-500">You must select a size and color.</p>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML = contentHtml;
+            };
+
+            const showLoginModal = () => {
+                const modal = document.getElementById('login-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                
+                // NEW: Close modal when clicking on the backdrop
+                modal.onclick = (e) => {
+                    if (e.target === modal) {
+                        App.hideLoginModal();
+                    }
+                };
+
+                const form = document.getElementById('login-form');
+                form.onsubmit = (e) => {
+                    e.preventDefault();
+                    const username = document.getElementById('login-username').value;
+                    const password = document.getElementById('login-password').value;
+                    App.handleLogin(username, password);
+                };
+            };
+
+            const hideLoginModal = () => {
+                const modal = document.getElementById('login-modal');
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+                // NEW: Clear the onclick listener to prevent memory leaks/unexpected behavior
+                modal.onclick = null; 
+            };
+
+            // --- Core App Logic ---
+
+            const App = {
+                
+                // State Mutators
+                setFilter: (filter) => {
+                    currentFilter = filter;
+                    renderHomePage();
+                },
+
+                setSearchTerm: (term) => {
+                    searchTerm = term;
+                },
+
+                handleSearchClick: () => {
+                    if (currentPage !== 'home') {
+                        App.navigate('home');
+                    }
+                    renderProducts();
+                    if (searchTerm) {
+                        showToast(`Filtering by search term: "${searchTerm}"`, 'info');
+                    } else {
+                        showToast(`Showing all products.`, 'info');
+                    }
+                },
+
+                navigate: (page) => {
+                    window.location.hash = page;
+                    
+                    if (page === 'home') {
+                        renderHomePage();
+                        // Start/Restart carousel when on home page
+                        currentSlide = 0;
+                        setTimeout(() => { // Small delay to ensure HTML is rendered
+                            App.updateCarousel();
+                            App.startCarousel();
+                        }, 50);
+                    } else if (page === 'cart') {
+                        renderCartPage();
+                    } else if (page.startsWith('checkout')) {
+                        // Handle direct checkout step navigation from hash (e.g., #checkout-step-2)
+                        const step = parseInt(page.split('-').pop());
+                        if (step >= 1 && step <= 3) {
+                            checkoutData.step = step;
+                            renderCheckoutPage();
+                        } else {
+                            // Default to step 1 if invalid
+                            App.navigate('checkout-step-1');
+                        }
+                    } else if (page === 'confirm') {
+                        renderConfirmationPage();
+                    }
+                    
+                    // Stop carousel when not on home page
+                    if (page !== 'home' && carouselInterval) {
+                        clearInterval(carouselInterval);
+                        carouselInterval = null;
+                    }
+                },
+                
+                // Checkout Navigation
+                navigateCheckout: (step) => {
+                    if (step < 1 || step > 3) return;
+                    checkoutData.step = step;
+                    App.navigate(`checkout-step-${step}`);
+                },
+                
+                // Authentication
+                showLoginModal,
+                hideLoginModal,
+
+                handleLogin: (username, password) => {
+                    // Simulated Auth Logic
+                    // test@123 for pre-fill, TEST@12345 for manual, testuser is generic manual
+                    if (password === 'password123' && (username === PRE_FILLED_SHIPPING.email || username === 'TEST@12345' || username === 'testuser')) {
+                        auth.isLoggedIn = true;
+                        auth.currentUser = username;
+                        hideLoginModal();
+                        renderNavBar();
+                        
+                        // Check for pre-fill condition
+                        if (username === PRE_FILLED_SHIPPING.email) {
+                            checkoutData.shipping = { ...PRE_FILLED_SHIPPING };
+                            showToast('Login successful! Shipping details pre-filled.', 'success');
+                        } else {
+                            // Ensure no old pre-filled data remains if logging in with a new user
+                            checkoutData.shipping = {}; 
+                            showToast('Login successful! Please enter your details.', 'success');
+                        }
+
+                        // Resume pending checkout if flag is set
+                        if (checkoutData.pendingCheckout) {
+                            checkoutData.pendingCheckout = false;
+                            App.navigate('checkout-step-1');
+                        }
+                    } else {
+                        showToast('Invalid username or password.', 'error');
+                    }
+                },
+
+                handleLogout: () => {
+                    auth.isLoggedIn = false;
+                    auth.currentUser = null;
+                    checkoutData.pendingCheckout = false;
+                    checkoutData.shipping = {}; // Clear pre-filled/saved shipping data on logout
+                    renderNavBar();
+                    showToast('Logged out successfully.', 'info');
+                    App.navigate('home');
+                },
+
+                handleProceedToCheckout: () => {
+                    if (!auth.isLoggedIn) {
+                        checkoutData.pendingCheckout = true;
+                        App.showLoginModal();
+                        showToast('Please log in to proceed to checkout.', 'info');
+                    } else {
+                        checkoutData.step = 1; // Always start at step 1
+                        App.navigate('checkout-step-1');
+                    }
+                },
+
+                // Cart/Modal Logic
+                showQuickViewModal,
+                hideQuickViewModal,
+                setQuickViewSize: (size) => {
+                    quickViewSelection.size = size;
+                    renderQuickViewContent();
+                },
+                setQuickViewColor: (name, classStr) => {
+                    quickViewSelection.color = { name, class: classStr };
+                    renderQuickViewContent();
+                },
+
+                addToCartFromModal: () => {
+                    const { product, size, color } = quickViewSelection;
+                    if (!product || !size || !color) {
+                        return showToast('Please select all options (size and color).', 'error');
+                    }
+
+                    const cartKey = `${product.id}-${size}-${color.name.toLowerCase()}`;
+                    
+                    if (cart[cartKey]) {
+                        // Check stock limit
+                        if (cart[cartKey].quantity >= product.stock) {
+                            return showToast(`Cannot add more. Only ${product.stock} left in stock.`, 'error');
+                        }
+                        cart[cartKey].quantity += 1;
+                    } else {
+                        cart[cartKey] = {
+                            cartKey,
+                            product,
+                            size,
+                            color,
+                            quantity: 1
+                        };
+                    }
+                    
+                    hideQuickViewModal();
+                    renderNavBar();
+                    showToast(`${product.name} (Size: ${size}) added to cart.`, 'success');
+                },
+
+                updateCartQuantity: (cartKey, delta) => {
+                    const item = cart[cartKey];
+                    if (!item) return;
+
+                    const newQty = item.quantity + delta;
+                    
+                    if (newQty < 1) {
+                        App.removeFromCart(cartKey);
+                    } else if (newQty > item.product.stock) {
+                        showToast(`Maximum stock reached for ${item.product.name}.`, 'error');
+                    } else {
+                        item.quantity = newQty;
+                        renderCartPage();
+                    }
+                },
+
+                removeFromCart: (cartKey) => {
+                    delete cart[cartKey];
+                    renderCartPage();
+                    renderNavBar();
+                    showToast('Item removed from cart.', 'info');
+                },
+
+                moveItemToSaved: (cartKey) => {
+                    savedForLater[cartKey] = cart[cartKey];
+                    delete cart[cartKey];
+                    renderCartPage();
+                    renderNavBar();
+                    showToast('Item saved for later.', 'info');
+                },
+
+                moveItemToCart: (cartKey) => {
+                    cart[cartKey] = savedForLater[cartKey];
+                    delete savedForLater[cartKey];
+                    renderCartPage();
+                    renderNavBar();
+                    showToast('Item moved back to cart.', 'success');
+                },
+                
+                removeFromSaved: (cartKey) => {
+                    delete savedForLater[cartKey];
+                    renderCartPage();
+                    showToast('Item removed from Saved for Later.', 'info');
+                },
+
+                // Step 1: Shipping Submit
+                handleShippingSubmit: () => {
+                    const form = document.getElementById('shipping-form');
+                    const elements = form.elements;
+                    let isValid = true;
+                    
+                    // Client-side validation
+                    const emailInput = elements.email;
+                    const postalInput = elements.postalCode;
+                    
+                    const emailError = document.getElementById('validation-error-email');
+                    const postalError = document.getElementById('validation-error-postal');
+
+                    // Check email format
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(emailInput.value)) {
+                        emailError.classList.remove('hidden');
+                        isValid = false;
+                    } else {
+                        emailError.classList.add('hidden');
+                    }
+
+                    // Check postal code length
+                    if (postalInput.value.length !== 6 || isNaN(postalInput.value)) {
+                        postalError.classList.remove('hidden');
+                        isValid = false;
+                    } else {
+                        postalError.classList.add('hidden');
+                    }
+
+                    // Check browser default validation (for required fields)
+                    if (!form.checkValidity()) {
+                        isValid = false;
+                    }
+                    
+                    if (isValid) {
+                        // Save data
+                        checkoutData.shipping = {
+                            fullName: elements.fullName.value,
+                            email: elements.email.value,
+                            address: elements.address.value,
+                            city: elements.city.value,
+                            postalCode: elements.postalCode.value
+                        };
+                        // Proceed to step 2
+                        App.navigateCheckout(2);
+                    } else {
+                        // Force native validation messages to show
+                        form.reportValidity();
+                        showToast('Please correct the errors in the shipping form.', 'error');
+                    }
+                },
+
+                // Step 2: Payment Submit (Simplified: always COD)
+                updatePaymentMethod: (method) => {
+                    checkoutData.payment.method = method;
+                    renderCheckoutStep2();
+                },
+
+                // Step 3: Place Order
+                handlePlaceOrder: () => {
+                    // 1. Deduct stock from ALL_PRODUCTS
+                    Object.values(cart).forEach(item => {
+                        const product = findProductById(item.product.id);
+                        if (product) {
+                            product.stock -= item.quantity;
+                        }
+                    });
+
+                    // 2. Clear cart state
+                    cart = {};
+                    
+                    // 3. Navigate to confirmation page
+                    App.navigate('confirm');
+
+                    showToast('Order successfully placed!', 'success');
+                },
+
+                // Carousel Controls
+                nextSlide,
+                prevSlide,
+                startCarousel,
+                updateCarousel,
+
+                init: () => {
+                    // Initial render of the navigation bar immediately
+                    renderNavBar(); 
+                    
+                    const initialPage = window.location.hash.replace('#', '') || 'home';
+                    
+                    // Set up initial navigation based on hash
+                    if (initialPage.startsWith('checkout')) {
+                        App.navigate(initialPage);
+                    } else {
+                        App.navigate(initialPage);
+                    }
+                    
+                    window.onhashchange = () => {
+                        const hashPage = window.location.hash.replace('#', '') || 'home';
+                        App.navigate(hashPage);
+                    };
+                }
+            };
+
+            // Expose App to global scope so HTML elements can call it (e.g., onclick)
+            window.App = App;
+            App.init();
+
+        })();
+    </script>
+</body>
+</html>
