@@ -47,3 +47,12 @@ Here are some typical automation test scenarios you could build around this site
 - Separate test logic from page definitions  
 - Include assertions for both **success and failure paths**  
 - Parameterize inputs for data-driven tests
+
+---
+
+## 📌 Author
+
+**Mayur Kumar**  
+Website: https://mayurkumaram.github.io/shopcart/ 🌐
+
+Happy testing! 🎉
